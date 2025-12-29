@@ -110,8 +110,15 @@ def webhook():
         # Get the update from the request
         update = Update.de_json(request.get_json(force=True), application.bot)
         
-        # Process the update asynchronously
-        asyncio.run(application.process_update(update))
+        # Initialize, process, and shutdown in one async block
+        async def process():
+            await application.initialize()
+            try:
+                await application.process_update(update)
+            finally:
+                await application.shutdown()
+        
+        asyncio.run(process())
         
         return 'OK', 200
     except Exception as e:
