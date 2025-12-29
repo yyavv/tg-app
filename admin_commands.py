@@ -33,9 +33,11 @@ I'm a message capture bot. Add me to your groups to start capturing messages.
 
 **Admin Commands:**
 /status - Database statistics
+/stats - Detailed statistics with charts
+/recent [N] - Show last N messages (default 10)
 /list_groups - List all monitored groups
 /list_topics <group_id> - Show topics in a group
-/reinitialize <source_id> <target_id> - Migrate messages
+/reinitialize - Migration info (not available in webhook mode)
 
 **Setup:**
 1. Add me to your group
@@ -186,3 +188,95 @@ This will copy all messages from the source group to the target group.
         
         await update.message.reply_text(message, parse_mode='Markdown')
         logger.info(f"List topics command used by {user.username} for group {group_id}")
+    
+    @staticmethod
+    async def recent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /recent command - Show recent messages."""
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("⛔ You are not authorized to use this command.")
+            return
+        
+        # Parse limit argument (default 10)
+        limit = 10
+        if context.args and context.args[0].isdigit():
+            limit = min(int(context.args[0]), 50)  # Max 50 messages
+        
+        messages = DatabaseHandler.get_recent_messages(limit=limit)
+        
+        if not messages:
+            await update.message.reply_text("📭 No messages in database yet.")
+            return
+        
+        response = f"📬 **Recent {len(messages)} Messages**\n\n"
+        
+        for msg in messages:
+            # Format timestamp
+            timestamp = msg.timestamp.strftime("%Y-%m-%d %H:%M")
+            
+            # Sender info
+            sender = msg.sender_username or msg.sender_first_name or "Unknown"
+            
+            # Topic info
+            topic_info = f" • {msg.topic_name}" if msg.topic_name else ""
+            
+            # Message preview
+            preview = ""
+            if msg.text_content:
+                preview = msg.text_content[:50]
+                if len(msg.text_content) > 50:
+                    preview += "..."
+            elif msg.caption:
+                preview = f"[{msg.message_type}] {msg.caption[:30]}..."
+            else:
+                preview = f"[{msg.message_type}]"
+            
+            response += f"🔹 **{msg.group_name}**{topic_info}\n"
+            response += f"   👤 {sender} • {timestamp}\n"
+            response += f"   💬 {preview}\n\n"
+        
+        await update.message.reply_text(response, parse_mode='Markdown')
+        logger.info(f"Recent command used by {user.username}, limit={limit}")
+    
+    @staticmethod
+    async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command - Show detailed statistics."""
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("⛔ You are not authorized to use this command.")
+            return
+        
+        stats = DatabaseHandler.get_detailed_stats()
+        
+        message = "📊 **Detailed Statistics**\n\n"
+        
+        # Overall stats
+        message += f"📝 **Total Messages:** {stats['total_messages']:,}\n"
+        message += f"👥 **Groups Monitored:** {stats['total_groups']}\n"
+        message += f"📌 **Forum Topics:** {stats['total_topics']}\n\n"
+        
+        # Message types
+        if stats['type_stats']:
+            message += "📂 **Message Types:**\n"
+            for msg_type, count in stats['type_stats']:
+                percentage = (count / stats['total_messages'] * 100) if stats['total_messages'] > 0 else 0
+                message += f"   • {msg_type}: {count:,} ({percentage:.1f}%)\n"
+            message += "\n"
+        
+        # Most active groups
+        if stats['active_groups']:
+            message += "🔥 **Most Active Groups:**\n"
+            for idx, (group_id, group_name, count) in enumerate(stats['active_groups'], 1):
+                message += f"   {idx}. {group_name}: {count:,} messages\n"
+            message += "\n"
+        
+        # Most active topics
+        if stats['active_topics']:
+            message += "💬 **Most Active Topics:**\n"
+            for idx, (topic_name, group_name, count) in enumerate(stats['active_topics'], 1):
+                message += f"   {idx}. {topic_name} ({group_name}): {count:,}\n"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        logger.info(f"Stats command used by {user.username}")

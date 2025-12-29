@@ -194,3 +194,71 @@ class DatabaseHandler:
             return result
         finally:
             session.close()
+    
+    @staticmethod
+    def get_recent_messages(limit=10, group_id=None, topic_id=None):
+        """Get recent messages with optional filters."""
+        session = get_session()
+        try:
+            query = session.query(CapturedMessage).order_by(
+                CapturedMessage.timestamp.desc()
+            )
+            
+            if group_id:
+                query = query.filter_by(group_id=group_id)
+            if topic_id is not None:
+                query = query.filter_by(topic_id=topic_id)
+            
+            messages = query.limit(limit).all()
+            return messages
+        finally:
+            session.close()
+    
+    @staticmethod
+    def get_detailed_stats():
+        """Get detailed statistics for all groups and topics."""
+        session = get_session()
+        try:
+            # Total stats
+            total_messages = session.query(CapturedMessage).count()
+            total_groups = session.query(TelegramGroup).count()
+            total_topics = session.query(ForumTopic).count()
+            
+            # Messages by type
+            type_stats = session.query(
+                CapturedMessage.message_type,
+                func.count(CapturedMessage.id).label('count')
+            ).group_by(CapturedMessage.message_type).all()
+            
+            # Most active groups
+            active_groups = session.query(
+                CapturedMessage.group_id,
+                CapturedMessage.group_name,
+                func.count(CapturedMessage.id).label('count')
+            ).group_by(
+                CapturedMessage.group_id,
+                CapturedMessage.group_name
+            ).order_by(func.count(CapturedMessage.id).desc()).limit(5).all()
+            
+            # Most active topics
+            active_topics = session.query(
+                CapturedMessage.topic_name,
+                CapturedMessage.group_name,
+                func.count(CapturedMessage.id).label('count')
+            ).filter(
+                CapturedMessage.topic_id.isnot(None)
+            ).group_by(
+                CapturedMessage.topic_name,
+                CapturedMessage.group_name
+            ).order_by(func.count(CapturedMessage.id).desc()).limit(5).all()
+            
+            return {
+                'total_messages': total_messages,
+                'total_groups': total_groups,
+                'total_topics': total_topics,
+                'type_stats': type_stats,
+                'active_groups': active_groups,
+                'active_topics': active_topics
+            }
+        finally:
+            session.close()

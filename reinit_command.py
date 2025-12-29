@@ -21,7 +21,22 @@ async def reinitialize_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("⛔ You are not authorized to use this command.")
         return
     
-    # Parse arguments
+    # Warning: This command doesn't work in webhook mode (Vercel timeout)
+    await update.message.reply_text(
+        "⚠️ **Warning: Reinitialize Not Available in Webhook Mode**\n\n"
+        "This command requires sending hundreds of messages, which takes too long "
+        "for Vercel's 10-second timeout limit.\n\n"
+        "**Alternative Solutions:**\n"
+        "1️⃣ Use `/export` to download messages as JSON\n"
+        "2️⃣ Manually forward important messages\n"
+        "3️⃣ Run bot in polling mode locally for migration\n\n"
+        "If you need to migrate a large group, run `python bot_polling.py` locally "
+        "and use `/reinitialize` there.",
+        parse_mode='Markdown'
+    )
+    return
+    
+    # Parse arguments (disabled for webhook mode)
     if len(context.args) != 2:
         await update.message.reply_text(
             "❌ Invalid usage.\n\n"

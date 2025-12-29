@@ -44,6 +44,8 @@ application.add_handler(CommandHandler("help", AdminCommands.help_command))
 application.add_handler(CommandHandler("status", AdminCommands.status))
 application.add_handler(CommandHandler("list_groups", AdminCommands.list_groups))
 application.add_handler(CommandHandler("list_topics", AdminCommands.list_topics))
+application.add_handler(CommandHandler("recent", AdminCommands.recent))
+application.add_handler(CommandHandler("stats", AdminCommands.stats))
 application.add_handler(CommandHandler("reinitialize", reinitialize_command))
 
 # Register chat member handler (for when bot is added to groups)
