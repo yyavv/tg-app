@@ -1,6 +1,7 @@
 """Main bot file - Telegram Message Capture Bot (Webhook Mode for Vercel)."""
 import logging
 import os
+import asyncio
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
@@ -101,7 +102,7 @@ def index():
 
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     """Handle incoming webhook updates from Telegram."""
     try:
         # Verify secret token if configured
@@ -114,17 +115,17 @@ async def webhook():
         # Get the update from the request
         update = Update.de_json(request.get_json(force=True), application.bot)
         
-        # Process the update
-        await application.process_update(update)
+        # Process the update asynchronously
+        asyncio.run(application.process_update(update))
         
         return 'OK', 200
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
+        logger.error(f"Error processing webhook: {e}", exc_info=True)
         return 'Error', 500
 
 
 @app.route('/set-webhook', methods=['GET'])
-async def set_webhook():
+def set_webhook():
     """Set the webhook URL for the bot."""
     webhook_url = os.getenv('WEBHOOK_URL')
     if not webhook_url:
@@ -137,14 +138,14 @@ async def set_webhook():
             webhook_params['secret_token'] = config.WEBHOOK_SECRET
             logger.info("Setting webhook with secret token")
         
-        await application.bot.set_webhook(**webhook_params)
+        # Run async operation
+        asyncio.run(application.bot.set_webhook(**webhook_params))
         return f'Webhook set to {webhook_url}/webhook (secured: {bool(config.WEBHOOK_SECRET)})', 200
     except Exception as e:
-        logger.error(f"Error setting webhook: {e}")
+        logger.error(f"Error setting webhook: {e}", exc_info=True)
         return f'Error: {e}', 500
 
 
-# Vercel serverless function handler
-async def handler(request):
-    """Handler for Vercel serverless functions."""
-    return app(request.environ, lambda *args: None)
+# For local testing
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
