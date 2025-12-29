@@ -3,9 +3,17 @@ from sqlalchemy import create_engine, Column, Integer, String, BigInteger, DateT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
+import os
 import config
 
 Base = declarative_base()
+
+# Get database URL from environment or use SQLite as fallback
+DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{config.DATABASE_PATH}')
+
+# Fix for Vercel Postgres (uses postgres:// instead of postgresql://)
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 
 class TelegramGroup(Base):
@@ -54,14 +62,15 @@ class CapturedMessage(Base):
 
 # Database initialization
 def init_db():
-    """Initialize the database."""
-    engine = create_engine(f'sqlite:///{config.DATABASE_PATH}')
+    """Initialize the database - creates tables automatically."""
+    engine = create_engine(DATABASE_URL, echo=False)
+    # This line creates ALL tables defined in models above
     Base.metadata.create_all(engine)
     return engine
 
 
 def get_session():
     """Get a database session."""
-    engine = create_engine(f'sqlite:///{config.DATABASE_PATH}')
+    engine = create_engine(DATABASE_URL, echo=False)
     Session = sessionmaker(bind=engine)
     return Session()
