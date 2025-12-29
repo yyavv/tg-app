@@ -17,17 +17,12 @@ from message_handlers import MessageCapture
 from admin_commands import AdminCommands
 from reinit_command import reinitialize_command
 
-# Create logs directory if it doesn't exist
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Configure logging with both file and console output
+# Configure logging (Vercel only supports console/stdout)
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/bot.log', encoding='utf-8'),
-        logging.StreamHandler()
+        logging.StreamHandler()  # Console only for Vercel
     ]
 )
 logger = logging.getLogger(__name__)
