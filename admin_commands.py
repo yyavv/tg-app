@@ -1,0 +1,188 @@
+"""Admin command handlers for the Telegram bot."""
+import logging
+from telegram import Update
+from telegram.ext import ContextTypes
+from db_handler import DatabaseHandler
+import config
+
+logger = logging.getLogger(__name__)
+
+
+def is_admin(user_id):
+    """Check if a user is an admin."""
+    return user_id in config.ADMIN_IDS
+
+
+class AdminCommands:
+    """Admin command handlers."""
+    
+    @staticmethod
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /start command."""
+        user = update.effective_user
+        
+        welcome_message = f"""
+👋 Hello {user.first_name}!
+
+I'm a message capture bot. Add me to your groups to start capturing messages.
+
+**Features:**
+• Automatic message capture from groups
+• Support for forum topics
+• Group migration with /reinitialize
+
+**Admin Commands:**
+/status - Database statistics
+/list_groups - List all monitored groups
+/list_topics <group_id> - Show topics in a group
+/reinitialize <source_id> <target_id> - Migrate messages
+
+**Setup:**
+1. Add me to your group
+2. Make me an admin
+3. Messages will be captured automatically
+
+For help, contact the bot administrator.
+"""
+        await update.message.reply_text(welcome_message, parse_mode='Markdown')
+    
+    @staticmethod
+    async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /status command."""
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("⛔ You are not authorized to use this command.")
+            return
+        
+        stats = DatabaseHandler.get_database_stats()
+        
+        status_message = f"""
+📊 **Database Status**
+
+Groups monitored: {stats['groups']}
+Total topics: {stats['topics']}
+Total messages: {stats['messages']:,}
+"""
+        await update.message.reply_text(status_message, parse_mode='Markdown')
+        logger.info(f"Status command used by {user.username}")
+    
+    @staticmethod
+    async def list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /list_groups command."""
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("⛔ You are not authorized to use this command.")
+            return
+        
+        groups = DatabaseHandler.get_all_groups()
+        
+        if not groups:
+            await update.message.reply_text("📋 No groups are being monitored yet.")
+            return
+        
+        message = "📋 **Monitored Groups:**\n\n"
+        for group in groups:
+            message += f"• {group['group_name']}\n"
+            message += f"  ID: `{group['group_id']}`\n"
+            message += f"  Messages: {group['message_count']:,}\n"
+            message += f"  Topics: {group['topic_count']}\n\n"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        logger.info(f"List groups command used by {user.username}")
+    
+    @staticmethod
+    async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /help command."""
+        help_text = """
+🤖 **Bot Help**
+
+**For Everyone:**
+/start - Start the bot and see welcome message
+/help - Show this help message
+
+**For Admins:**
+/status - Show database statistics
+/list_topics <group_id> - Show topics in a specific group
+/list_groups - List all monitored groups
+/reinitialize <source_id> <target_id> - Migrate messages from one group to another
+
+**How to Use:**
+1. Add the bot to your Telegram group
+2. Make the bot an administrator
+3. Messages will be automatically captured
+4. Use /list_groups to see captured groups and their IDs
+5. Use /reinitialize to migrate messages to a new group
+
+**Example:**
+`/reinitialize -1001234567890 -1009876543210`
+
+This will copy all messages from the source group to the target group.
+"""
+        await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    @staticmethod
+    async def list_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /list_topics command to show topics in a group."""
+        user = update.effective_user
+        
+        if not is_admin(user.id):
+            await update.message.reply_text("⛔ You are not authorized to use this command.")
+            return
+        
+        # Parse group_id argument
+        if len(context.args) != 1:
+            await update.message.reply_text(
+                "❌ Invalid usage.\n\n"
+                "Usage: `/list_topics <group_id>`\n\n"
+                "Example: `/list_topics -1001234567890`\n\n"
+                "Use /list_groups to get group IDs.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        try:
+            group_id = int(context.args[0])
+        except ValueError:
+            await update.message.reply_text("❌ Group ID must be a valid integer.")
+            return
+        
+        # Get group info
+        group = DatabaseHandler.get_group_by_id(group_id)
+        if not group:
+            await update.message.reply_text(f"❌ Group with ID `{group_id}` not found in database.", parse_mode='Markdown')
+            return
+        
+        # Get topic statistics
+        topic_stats = DatabaseHandler.get_topic_stats(group_id)
+        
+        if not topic_stats:
+            await update.message.reply_text(
+                f"📋 **Topics in {group.group_name}**\n\n"
+                f"No messages captured yet for this group.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        message = f"📋 **Topics in {group.group_name}**\n"
+        message += f"Group ID: `{group_id}`\n\n"
+        
+        total_messages = 0
+        for topic in topic_stats:
+            topic_name = topic['topic_name']
+            topic_id = topic['topic_id']
+            msg_count = topic['message_count']
+            total_messages += msg_count
+            
+            if topic_id is None:
+                message += f"📌 **{topic_name}** (No topic)\n"
+            else:
+                message += f"📌 **{topic_name}**\n"
+                message += f"   Topic ID: `{topic_id}`\n"
+            message += f"   Messages: {msg_count:,}\n\n"
+        
+        message += f"**Total Messages:** {total_messages:,}"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        logger.info(f"List topics command used by {user.username} for group {group_id}")
