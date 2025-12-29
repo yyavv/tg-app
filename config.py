@@ -17,6 +17,9 @@ ADMIN_IDS = [int(id.strip()) for id in ADMIN_IDS_STR.split(',') if id.strip()]
 # Database Configuration
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'bot_database.db')
 
+# Webhook Configuration (for Vercel)
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', None)
+
 # Logging Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 

@@ -104,6 +104,13 @@ def index():
 async def webhook():
     """Handle incoming webhook updates from Telegram."""
     try:
+        # Verify secret token if configured
+        if config.WEBHOOK_SECRET:
+            secret_header = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
+            if secret_header != config.WEBHOOK_SECRET:
+                logger.warning(f"Invalid webhook secret token from {request.remote_addr}")
+                return 'Unauthorized', 403
+        
         # Get the update from the request
         update = Update.de_json(request.get_json(force=True), application.bot)
         
@@ -124,8 +131,14 @@ async def set_webhook():
         return 'WEBHOOK_URL environment variable not set', 400
     
     try:
-        await application.bot.set_webhook(url=f"{webhook_url}/webhook")
-        return f'Webhook set to {webhook_url}/webhook', 200
+        # Set webhook with secret token if configured
+        webhook_params = {'url': f"{webhook_url}/webhook"}
+        if config.WEBHOOK_SECRET:
+            webhook_params['secret_token'] = config.WEBHOOK_SECRET
+            logger.info("Setting webhook with secret token")
+        
+        await application.bot.set_webhook(**webhook_params)
+        return f'Webhook set to {webhook_url}/webhook (secured: {bool(config.WEBHOOK_SECRET)})', 200
     except Exception as e:
         logger.error(f"Error setting webhook: {e}")
         return f'Error: {e}', 500
