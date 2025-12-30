@@ -12,7 +12,7 @@ import config
 from database import init_db
 from message_handlers import MessageCapture
 from admin_commands import AdminCommands
-from reinit_command import reinitialize_command
+from reinit_interactive import get_reinitialize_handler
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -46,7 +46,11 @@ def main():
     application.add_handler(CommandHandler("status", AdminCommands.status))
     application.add_handler(CommandHandler("list_groups", AdminCommands.list_groups))
     application.add_handler(CommandHandler("list_topics", AdminCommands.list_topics))
-    application.add_handler(CommandHandler("reinitialize", reinitialize_command))
+    application.add_handler(CommandHandler("recent", AdminCommands.recent))
+    application.add_handler(CommandHandler("stats", AdminCommands.stats))
+    
+    # Add interactive reinitialize conversation handler
+    application.add_handler(get_reinitialize_handler())
     
     # Register chat member handler (for when bot is added to groups)
     application.add_handler(
