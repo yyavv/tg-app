@@ -21,14 +21,26 @@ class DatabaseHandler:
             if group:
                 group.group_name = group_name
                 group.updated_at = datetime.utcnow()
+                logger.info(f"Updated group: {group_name} ({group_id})")
             else:
                 group = TelegramGroup(group_id=group_id, group_name=group_name)
                 session.add(group)
+                logger.info(f"Added group: {group_name} ({group_id})")
             session.commit()
-            logger.info(f"Added/updated group: {group_name} ({group_id})")
         except Exception as e:
-            logger.error(f"Error adding/updating group: {e}")
+            logger.error(f"Error adding/updating group {group_id}: {e}")
             session.rollback()
+            # Try to recover by updating existing record
+            try:
+                existing = session.query(TelegramGroup).filter_by(group_id=group_id).first()
+                if existing:
+                    existing.group_name = group_name
+                    existing.updated_at = datetime.utcnow()
+                    session.commit()
+                    logger.info(f"Recovered: Updated existing group {group_id}")
+            except Exception as e2:
+                logger.error(f"Recovery failed for group {group_id}: {e2}")
+                session.rollback()
         finally:
             session.close()
     

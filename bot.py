@@ -112,13 +112,11 @@ def webhook():
         # Get the update from the request
         update = Update.de_json(request.get_json(force=True), application.bot)
         
-        # Initialize, process, and shutdown in one async block
+        # Process update with fresh event loop
         async def process():
-            await application.initialize()
-            try:
+            # Use a fresh application instance for each request
+            async with application:
                 await application.process_update(update)
-            finally:
-                await application.shutdown()
         
         asyncio.run(process())
         
