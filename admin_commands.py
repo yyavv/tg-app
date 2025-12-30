@@ -209,32 +209,75 @@ This will copy all messages from the source group to the target group.
             await update.message.reply_text("📭 No messages in database yet.")
             return
         
-        response = f"📬 **Recent {len(messages)} Messages**\n\n"
+        # Group consecutive messages from same group/topic
+        grouped = []
+        current_group = None
         
         for msg in messages:
-            # Format timestamp
-            timestamp = msg.timestamp.strftime("%Y-%m-%d %H:%M")
+            group_key = (msg.group_id, msg.topic_id)
             
-            # Sender info
-            sender = msg.sender_username or msg.sender_first_name or "Unknown"
-            
-            # Topic info
-            topic_info = f" • {msg.topic_name}" if msg.topic_name else ""
-            
-            # Message preview
-            preview = ""
-            if msg.text_content:
-                preview = msg.text_content[:50]
-                if len(msg.text_content) > 50:
-                    preview += "..."
-            elif msg.caption:
-                preview = f"[{msg.message_type}] {msg.caption[:30]}..."
+            if current_group and current_group['key'] == group_key:
+                # Add to current group
+                current_group['messages'].append(msg)
+                current_group['count'] += 1
             else:
-                preview = f"[{msg.message_type}]"
+                # Start new group
+                if current_group:
+                    grouped.append(current_group)
+                
+                current_group = {
+                    'key': group_key,
+                    'group_name': msg.group_name,
+                    'topic_name': msg.topic_name,
+                    'messages': [msg],
+                    'count': 1
+                }
+        
+        if current_group:
+            grouped.append(current_group)
+        
+        response = f"📬 **Recent Messages ({len(messages)} total)**\n\n"
+        
+        for group in grouped:
+            # Topic info
+            topic_info = f" • {group['topic_name']}" if group['topic_name'] else ""
             
-            response += f"🔹 **{msg.group_name}**{topic_info}\n"
-            response += f"   👤 {sender} • {timestamp}\n"
-            response += f"   💬 {preview}\n\n"
+            # Show group header
+            if group['count'] == 1:
+                msg = group['messages'][0]
+                timestamp = msg.timestamp.strftime("%H:%M")
+                sender = msg.sender_username or msg.sender_first_name or "Unknown"
+                
+                # Message preview
+                if msg.text_content:
+                    preview = msg.text_content[:60]
+                    if len(msg.text_content) > 60:
+                        preview += "..."
+                elif msg.caption:
+                    preview = f"[{msg.message_type}] {msg.caption[:40]}..."
+                else:
+                    preview = f"[{msg.message_type}]"
+                
+                response += f"🔹 **{group['group_name']}**{topic_info}\n"
+                response += f"   👤 {sender} • {timestamp}\n"
+                response += f"   💬 {preview}\n\n"
+            else:
+                # Multiple messages - show count
+                first_msg = group['messages'][0]
+                last_msg = group['messages'][-1]
+                time_range = f"{last_msg.timestamp.strftime('%H:%M')}-{first_msg.timestamp.strftime('%H:%M')}"
+                
+                response += f"🔹 **{group['group_name']}**{topic_info}\n"
+                response += f"   📦 {group['count']} messages • {time_range}\n"
+                
+                # Show preview of last message
+                msg = group['messages'][0]  # Most recent (first in list)
+                if msg.text_content and len(msg.text_content) <= 40:
+                    response += f"   💬 Latest: {msg.text_content}\n"
+                elif msg.message_type != "text":
+                    response += f"   💬 Latest: [{msg.message_type}]\n"
+                
+                response += "\n"
         
         await update.message.reply_text(response, parse_mode='Markdown')
         logger.info(f"Recent command used by {user.username}, limit={limit}")

@@ -120,8 +120,28 @@ class MessageCapture:
         elif message.poll:
             message_type = "poll"
             text_content = f"Poll: {message.poll.question}"
+        elif message.contact:
+            message_type = "contact"
+            contact = message.contact
+            text_content = f"Contact: {contact.first_name} {contact.last_name or ''} ({contact.phone_number})"
+        elif message.venue:
+            message_type = "venue"
+            venue = message.venue
+            text_content = f"Venue: {venue.title} - {venue.address}"
+        elif message.new_chat_members:
+            message_type = "new_member"
+            members = ", ".join([m.first_name for m in message.new_chat_members])
+            text_content = f"New members: {members}"
+        elif message.left_chat_member:
+            message_type = "left_member"
+            text_content = f"Left: {message.left_chat_member.first_name}"
+        elif message.new_chat_title:
+            message_type = "title_change"
+            text_content = f"New title: {message.new_chat_title}"
         else:
             message_type = "other"
+            # Log what type it actually is for debugging
+            logger.debug(f"Unknown message type: {message}")
         
         # Prepare message data
         message_data = {
